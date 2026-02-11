@@ -8,8 +8,7 @@ TOKEN = os.environ.get('SNIPER_TOKEN')
 CHAT_ID = os.environ.get('MY_PRIVATE_ID')
 
 def get_indicators(series):
-    # 데이터 부족 시 방어 로직
-    if len(series) < 15: return 0.0, 0.0, 0.0, 0.0, 0.0
+    if len(series) < 20: return 0.0, 0.0, 0.0, 0.0, 0.0
     
     # RSI 계산
     delta = series.diff()
@@ -25,16 +24,7 @@ def get_indicators(series):
     slow_k = fast_k.rolling(window=3).mean()
     slow_d = slow_k.rolling(window=3).mean()
     
-    # 마지막 및 이전 값 추출 (NaN 방지)
-    try:
-        curr_rsi = float(rsi.iloc[-1])
-        curr_k = float(slow_k.iloc[-1])
-        curr_d = float(slow_d.iloc[-1])
-        prev_k = float(slow_k.iloc[-2])
-        prev_d = float(slow_d.iloc[-2])
-        return curr_rsi, curr_k, curr_d, prev_k, prev_d
-    except:
-        return 0.0, 0.0, 0.0, 0.0, 0.0
+    return float(rsi.iloc[-1]), float(slow_k.iloc[-1]), float(slow_d.iloc[-1]), float(slow_k.iloc[-2]), float(slow_d.iloc[-2])
 
 def run_sniper():
     watch_list = {
@@ -50,45 +40,53 @@ def run_sniper():
 
     now = datetime.now()
     hour = (now.hour + 9) % 24
-    msg = f"🎯 *[보강] 실시간 바닥 스캔*\n📅 {now.strftime('%Y-%m-%d %H:%M')} (KST)\n━━━━━━━━━━━━━━━\n\n"
+    
+    # 상단 기준 안내 (복구 완료)
+    msg = f"🎯 *실시간 바닥 정밀 스캔*\n"
+    msg += f"📅 {now.strftime('%Y-%m-%d %H:%M')} (KST)\n"
+    msg += f"💡 *기준: RSI 50 미만 & Stoch 골든크로스*\n"
+    msg += f"━━━━━━━━━━━━━━━\n\n"
 
     hit_names = []
     vix_val = 0
 
     for ticker, name in watch_list.items():
         try:
-            # 데이터 로드 (auto_adjust 등 안전 옵션 추가)
-            df = yf.download(ticker, period="3mo", interval="1d", progress=False, auto_adjust=True)
+            # 데이터를 1개씩 확실하게 가져오기
+            df = yf.download(ticker, period="3mo", interval="1d", progress=False)
             if df.empty: continue
             
-            # 데이터 추출 (가장 확실한 방법)
-            series = df['Close']
-            if isinstance(series, pd.DataFrame): 
-                series = series.iloc[:, 0] # 첫 번째 열 강제 선택
+            # yfinance 데이터 구조 강제 정규화 (핵심!)
+            if isinstance(df.columns, pd.MultiIndex):
+                series = df.xs('Close', axis=1, level=0).iloc[:, 0]
+            else:
+                series = df['Close']
+            
             series = series.dropna()
+            current_price = float(series.iloc[-1])
 
             if ticker == "^VIX":
-                vix_val = float(series.iloc[-1])
+                vix_val = current_price
                 continue
 
             # 지표 계산
             rsi, k, d, pk, pd_val = get_indicators(series)
 
-            # 판정 로직 (RSI 50 미만 + 스토캐스틱)
+            # 판정 로직
             status = "💤 관망중"
-            if rsi > 0: # 데이터가 정상일 때만 판정
-                if rsi <= 50 and (k <= 20 or (k > d and pk <= pd_val)):
+            if rsi > 0:
+                is_rsi_ok = rsi <= 50
+                is_stoch_ok = (k <= 20) or (k > d and pk <= pd_val)
+                
+                if is_rsi_ok and is_stoch_ok:
                     status = "🔥 *[매수 적기]*"
                     hit_names.append(name)
                 elif rsi <= 55 or k <= 30:
                     status = "⚠️ *[관심 진입]*"
 
             unit = "원" if ".KS" in ticker else "$"
-            price = float(series.iloc[-1])
-            
-            # 리포트 작성 (수치 강제 출력)
             msg += f"📍 *{name}*\n"
-            msg += f"- 현재가: {unit}{price:,.0f if unit=='원' else 2}\n"
+            msg += f"- 현재가: {unit}{current_price:,.0f if unit=='원' else 2}\n"
             msg += f"- RSI: *{rsi:.1f}*\n"
             msg += f"- Stoch: *K {k:.1f} / D {d:.1f}*\n"
             msg += f"- 상태: {status}\n\n"
@@ -96,7 +94,9 @@ def run_sniper():
         except Exception as e:
             print(f"Error {ticker}: {e}")
 
-    msg += f"━━━━━━━━━━━━━━━\n🌡️ VIX: {vix_val:.1f}\n"
+    msg += f"━━━━━━━━━━━━━━━\n"
+    msg += f"🌡️ 시장 공포(VIX): {vix_val:.1f}\n"
+    
     if hit_names:
         msg += f"📢 *신호 포착: " + ", ".join(hit_names) + "*"
     else:
