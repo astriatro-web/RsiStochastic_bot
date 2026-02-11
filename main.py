@@ -32,7 +32,7 @@ def run_sniper():
         "000660.KS": "🇰🇷 SK하이닉스",
         "GOOGL": "🔍 구글 (GOOGL)",
         "IONQ": "⚛️ 아이온큐 (IONQ)",
-        "BMNR": "⛏️ 비트마이닝 (BMNR)",
+        "BMNR": "⛏️ 비트마인 (BMNR)",
         "RKLB": "🚀 로켓랩 (RKLB)",
         "IREN": "⚡ 아이렌 (IREN)",
         "^VIX": "🌡️ 공포지수"
@@ -41,10 +41,9 @@ def run_sniper():
     now = datetime.now()
     hour = (now.hour + 9) % 24
     
-    # 상단 기준 안내 (복구 완료)
     msg = f"🎯 *실시간 바닥 정밀 스캔*\n"
     msg += f"📅 {now.strftime('%Y-%m-%d %H:%M')} (KST)\n"
-    msg += f"💡 *기준: RSI 50 미만 & Stoch 골든크로스*\n"
+    msg += f"💡 *기준: RSI 40 미만 & Stoch 골든크로스*\n"
     msg += f"━━━━━━━━━━━━━━━\n\n"
 
     hit_names = []
@@ -52,11 +51,9 @@ def run_sniper():
 
     for ticker, name in watch_list.items():
         try:
-            # 데이터를 1개씩 확실하게 가져오기
             df = yf.download(ticker, period="3mo", interval="1d", progress=False)
             if df.empty: continue
             
-            # yfinance 데이터 구조 강제 정규화 (핵심!)
             if isinstance(df.columns, pd.MultiIndex):
                 series = df.xs('Close', axis=1, level=0).iloc[:, 0]
             else:
@@ -69,19 +66,18 @@ def run_sniper():
                 vix_val = current_price
                 continue
 
-            # 지표 계산
             rsi, k, d, pk, pd_val = get_indicators(series)
 
-            # 판정 로직
+            # [수정] RSI 기준을 40으로 변경
             status = "💤 관망중"
             if rsi > 0:
-                is_rsi_ok = rsi <= 50
+                is_rsi_ok = rsi <= 40
                 is_stoch_ok = (k <= 20) or (k > d and pk <= pd_val)
                 
                 if is_rsi_ok and is_stoch_ok:
                     status = "🔥 *[매수 적기]*"
                     hit_names.append(name)
-                elif rsi <= 55 or k <= 30:
+                elif rsi <= 45 or k <= 25:
                     status = "⚠️ *[관심 진입]*"
 
             unit = "원" if ".KS" in ticker else "$"
