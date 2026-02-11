@@ -23,7 +23,6 @@ def get_indicators(series):
     return rsi, slow_k, slow_d
 
 def run_sniper():
-    # 감시 종목 리스트 (7종목 정예)
     watch_list = {
         "005930.KS": "🇰🇷 삼성전자",
         "000660.KS": "🇰🇷 SK하이닉스",
@@ -52,7 +51,7 @@ def run_sniper():
     msg += f"💡 기준: RSI 50 미만 & Stoch 골든크로스\n"
     msg += f"━━━━━━━━━━━━━━━\n\n"
 
-    hit_count = 0
+    hit_names = []  # 매수 신호 포착된 종목명을 담을 리스트
     vix_val = 0
 
     for ticker, name in watch_list.items():
@@ -75,15 +74,13 @@ def run_sniper():
             d = float(d_s.iloc[-1])
             price = float(series.iloc[-1])
 
-            # [수정] RSI 기준 50으로 완화
             is_rsi_active = rsi <= 50 
             is_stoch_bottom = k <= 20
             is_golden_cross = k > d and k_s.iloc[-2] <= d_s.iloc[-2]
 
-            # 매수 신호 판정
             if is_rsi_active and (is_stoch_bottom or is_golden_cross):
                 status = "🔥 *[매수 적기]*"
-                hit_count += 1
+                hit_names.append(name) # 종목명 추가
             elif rsi <= 55 or k <= 30:
                 status = "⚠️ *[관심 진입]*"
             else:
@@ -100,7 +97,13 @@ def run_sniper():
 
     msg += f"━━━━━━━━━━━━━━━\n"
     msg += f"🌡️ 시장 공포(VIX): {vix_val:.1f}\n"
-    msg += f"📢 포착된 매수 신호: *{hit_count}개*"
+    
+    # [수정] 포착된 종목이 있으면 목록으로 보여줌
+    if hit_names:
+        msg += f"📢 *매수 신호 포착 ({len(hit_names)}개):*\n"
+        msg += f"👉 " + ", ".join(hit_names)
+    else:
+        msg += f"📢 포착된 매수 신호 없음"
 
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     requests.post(url, json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
