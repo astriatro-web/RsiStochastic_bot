@@ -23,7 +23,6 @@ def get_indicators(series):
     return rsi, slow_k, slow_d
 
 def run_sniper():
-    # 감시 종목 리스트
     watch_list = {
         "005930.KS": "🇰🇷 삼성전자",
         "000660.KS": "🇰🇷 SK하이닉스",
@@ -32,14 +31,22 @@ def run_sniper():
         "^VIX": "🌡️ 공포지수"
     }
 
-    # 헤더 설정
+    # 한국 시간 기준 시간대 판별 (UTC+9)
     now = datetime.now()
-    now_hour = (now.hour + 9) % 24
-    header = "🇰🇷 국장 마감 브리핑" if 14 <= now_hour <= 17 else "🇺🇸 미장 마감 브리핑"
+    hour = (now.hour + 9) % 24
 
-    msg = f"🎯 *{header}*\n"
-    msg += f"📅 {now.strftime('%Y-%m-%d %H:%M')}\n"
-    msg += f"🔍 *현재 감시 종목 현황*\n"
+    # 실행 시각에 따른 유연한 제목 설정
+    if 5 <= hour <= 10:
+        title_type = "☀️ 미장 마감 & 기상 리포트"
+    elif 14 <= hour <= 16:
+        title_type = "☕ 국장 마감 & 오후 전략"
+    elif 22 <= hour <= 24:
+        title_type = "🌙 미장 개장 & 야간 점검"
+    else:
+        title_type = "🔍 실시간 바닥 정밀 스캔"
+
+    msg = f"🎯 *{title_type}*\n"
+    msg += f"📅 {now.strftime('%Y-%m-%d %H:%M')} (KST)\n"
     msg += f"━━━━━━━━━━━━━━━\n\n"
 
     hit_count = 0
@@ -47,6 +54,7 @@ def run_sniper():
 
     for ticker, name in watch_list.items():
         try:
+            # 실시간성을 위해 period는 짧게 가져옵니다.
             df = yf.download(ticker, period="1mo", interval="1d", progress=False)
             if df.empty: continue
             
@@ -61,19 +69,18 @@ def run_sniper():
             d = float(d_s.iloc[-1])
             price = float(series.iloc[-1])
 
-            # 매수 조건 판정
+            # 매수 조건 (RSI 35 이하 + 스토캐스틱 조건)
             is_rsi_bottom = rsi <= 35
             is_stoch_bottom = k <= 20
             is_golden_cross = k > d and k_s.iloc[-2] <= d_s.iloc[-2]
 
-            # 상태 메시지 결정
             if is_rsi_bottom and (is_stoch_bottom or is_golden_cross):
                 status = "🔥 *[강력매수]*"
                 hit_count += 1
             elif rsi <= 40 or k <= 25:
-                status = "⚠️ *[주의깊게 관찰]*"
+                status = "⚠️ *[주의관찰]*"
             else:
-                status = "💤 관망 중"
+                status = "💤 관망중"
 
             unit = "원" if ".KS" in ticker else "$"
             msg += f"📍 *{name}*\n"
@@ -86,7 +93,7 @@ def run_sniper():
 
     msg += f"━━━━━━━━━━━━━━━\n"
     msg += f"🌡️ 시장 공포(VIX): {vix_val:.1f}\n"
-    msg += f"📢 포착된 반등 신호: *{hit_count}개*"
+    msg += f"📢 포착된 바닥 신호: *{hit_count}개*"
 
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     requests.post(url, json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
