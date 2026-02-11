@@ -1,0 +1,27 @@
+name: Private Sniper Bot
+
+on:
+  schedule:
+    # 1. 국장용: 한국 15:10 (UTC 06:10)
+    - cron: '10 6 * * 1-5'
+    # 2. 미장용: 한국 05:05 (UTC 20:05)
+    - cron: '5 20 * * 0-4'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: pip install yfinance pandas requests
+      - name: Run Sniper
+        env:
+          SNIPER_TOKEN: ${{ secrets.SNIPER_TOKEN }}
+          MY_PRIVATE_ID: ${{ secrets.MY_PRIVATE_ID }}
+        run: python main.py
