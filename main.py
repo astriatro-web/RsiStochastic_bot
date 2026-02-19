@@ -32,7 +32,7 @@ def analyze_volume_profile(df):
     data = df.tail(60)
     current_price = float(data['Close'].iloc[-1])
     
-    # 가격 구간을 15개로 더 세분화하여 분석
+    # 가격 구간을 15개로 세분화하여 분석
     bins = 15
     hist, bin_edges = np.histogram(data['Close'], bins=bins, weights=data['Volume'])
     
@@ -56,12 +56,13 @@ def analyze_volume_profile(df):
     return support, resistance
 
 def run_sniper():
+    # 종목 리스트 수정: BMNR 삭제, TEM 추가
     watch_list = {
         "005930.KS": "🇰🇷 삼성전자",
         "000660.KS": "🇰🇷 SK하이닉스",
         "GOOGL": "🔍 구글 (GOOGL)",
         "IONQ": "⚛️ 아이온큐 (IONQ)",
-        "BMNR": "⛏️ 비트마인 (BMNR)",
+        "TEM": "🩺 템퍼스AI (TEM)",
         "RKLB": "🚀 로켓랩 (RKLB)",
         "IREN": "⚡ 아이렌 (IREN)",
         "^VIX": "🌡️ 공포지수"
@@ -80,7 +81,7 @@ def run_sniper():
             df = yf.download(ticker, period="6mo", interval="1d", progress=False)
             if df.empty: continue
             
-            # 멀티 인덱스 대응
+            # 멀티 인덱스 대응 (yfinance 최신 버전 호환)
             if isinstance(df.columns, pd.MultiIndex):
                 close_ser = df['Close'][ticker].dropna()
             else:
@@ -94,10 +95,14 @@ def run_sniper():
 
             # 지표 및 매물대 분석
             rsi_series, k_series, d_series = get_indicators(close_ser)
+            if rsi_series is None: continue
+            
             rsi, k, d = rsi_series.iloc[-1], k_series.iloc[-1], d_series.iloc[-1]
             pk, pd_val = k_series.iloc[-2], d_series.iloc[-2]
             
-            support, resistance = analyze_volume_profile(df if not isinstance(df.columns, pd.MultiIndex) else df.xs(ticker, axis=1, level=1))
+            # 매물대 지지/저항 분석
+            target_df = df if not isinstance(df.columns, pd.MultiIndex) else df.xs(ticker, axis=1, level=1)
+            support, resistance = analyze_volume_profile(target_df)
 
             # 매수 신호 로직
             is_rsi_ok = (rsi <= 35) or (rsi <= 45 and rsi > rsi_series.iloc[-2])
@@ -106,12 +111,16 @@ def run_sniper():
             
             unit = "원" if ".KS" in ticker else "$"
             p_fmt = f"{current_price:,.0f}{unit}" if unit=="원" else f"{current_price:.2f}{unit}"
-            s_fmt = f"{support:,.0f}{unit}" if support else "N/A"
-            r_fmt = f"{resistance:,.0f}{unit}" if resistance else "N/A"
-            if unit == "$":
+            
+            # 매물대 포맷팅
+            if unit == "원":
+                s_fmt = f"{support:,.0f}{unit}" if support else "N/A"
+                r_fmt = f"{resistance:,.0f}{unit}" if resistance else "N/A"
+            else:
                 s_fmt = f"{support:.2f}{unit}" if support else "N/A"
                 r_fmt = f"{resistance:.2f}{unit}" if resistance else "N/A"
 
+            # 상태 결정
             if is_rsi_ok and is_stoch_ok and is_near_support:
                 status = "🔥 *[강력 매수 적기]*"
             elif is_rsi_ok and is_stoch_ok:
