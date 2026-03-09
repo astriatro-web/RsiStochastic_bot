@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Set up Python
-        uses: actions/setup-python@v4  # 이 부분을 setup-python으로 수정했습니다
+        uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
@@ -30,6 +30,7 @@ jobs:
 
       - name: Run Sniper Bot
         env:
+          # GitHub Secrets에 저장된 이름 그대로 매칭
           SNIPER_TOKEN: ${{ secrets.SNIPER_TOKEN }}
           MY_PRIVATE_ID: ${{ secrets.MY_PRIVATE_ID }}
         run: python main.py
