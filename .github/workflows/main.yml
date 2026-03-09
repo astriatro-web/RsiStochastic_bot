@@ -1,1 +1,35 @@
+name: Market Sniper Bot
 
+on:
+  schedule:
+    # 1. 새벽 05:05 KST -> UTC 20:05 (전날)
+    - cron: '5 20 * * *'
+    # 2. 오후 15:00 KST -> UTC 06:00
+    - cron: '0 6 * * *'
+    # 3. 밤 23:00 KST -> UTC 14:00
+    - cron: '0 14 * * *'
+  workflow_dispatch: # 수동 실행 버튼 활성화
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/checkout@v3
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install yfinance pandas numpy requests
+
+      - name: Run Sniper Bot
+        env:
+          SNIPER_TOKEN: ${{ secrets.SNIPER_TOKEN }}
+          MY_PRIVATE_ID: ${{ secrets.MY_PRIVATE_ID }}
+        run: python main.py
